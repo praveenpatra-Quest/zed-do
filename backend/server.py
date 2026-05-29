@@ -24,7 +24,7 @@ DB_NAME = os.environ.get("DB_NAME")
 SECRET_KEY = os.environ.get("JWT_SECRET", "zen-do-super-secret-key")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
-RESEND_API_KEY = "re_KVUTZQS7_FcghzeKYVe4HjRnSAGFQUuNv"
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
@@ -55,7 +55,7 @@ class UserBase(BaseModel):
     name: Optional[str] = None
 
 class UserCreate(UserBase):
-    name: str
+    name: Optional[str] = None
     password: str
     origin: Optional[str] = None
 
@@ -220,14 +220,12 @@ async def signup(user_in: UserCreate, request: Request):
         scheme = "https" if request.headers.get("x-forwarded-proto") == "https" else "http"
         origin = f"{scheme}://{host}"
     
-    await send_verification_email(user_in.email, verification_token, origin, user_in.name)
+    await send_verification_email(user_in.email, verification_token, origin, user_in.name or "")
     
     return format_doc(user_dict)
 
 @app.post("/api/auth/login", response_model=Token)
 async def login(user_in: UserCreate):
-    # Note: Using UserCreate model here but password is the only required field besides email for login
-    # In a real app we'd use a separate Login model
     user = await db.users.find_one({"email": user_in.email})
     if not user or not verify_password(user_in.password, user["hashed_password"]):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
